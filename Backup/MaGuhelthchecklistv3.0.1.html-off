@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Gesundheits-Check V2.1</title>
+
+<div class="card" id="authBox">
+  <h3>Anmeldung</h3>
+  <div class="row">
+    <div><label>E-Mail</label><input id="email" type="text" placeholder="name@mail.ch"></div>
+    <div><label>Passwort</label><input id="pass" type="text" placeholder="mind. 8 Zeichen"></div>
+  </div>
+  <div class="btnrow" style="margin-top:10px;">
+    <button onclick="login()">Login</button>
+    <button class="secondary" onclick="registerUser()">Registrieren</button>
+    <button class="secondary" onclick="logout()">Logout</button>
+  </div>
+  <p class="small" id="authMsg"></p>
+</div>
+
+<style>
+  body{font-family:-apple-system,Arial,sans-serif;background:#f5f5f7;margin:0;padding:16px;}
+  h1{margin:6px 0 14px;text-align:center;font-size:22px;}
+  .card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:120px;}
+  label{display:block;margin:8px 0;}
+  input[type="number"], input[type="text"], textarea, select{
+    width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;
+  }
+  textarea{min-height:70px;resize:vertical;}
+  .progress{height:18px;background:#ddd;border-radius:999px;overflow:hidden;}
+  .bar{height:100%;width:0%;background:#34c759;}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;}
+  button{
+    flex:1;min-width:140px;
+    padding:12px;border:none;border-radius:12px;font-size:16px;
+    background:#007aff;color:#fff;
+  }
+  button.secondary{background:#8e8e93;}
+  button.danger{background:#ff3b30;}
+  .small{color:#666;font-size:13px;line-height:1.4;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top;}
+  th{color:#333;font-weight:600;}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eee;font-size:12px;margin-left:6px;}
+  .banner{
+    border-radius:14px;padding:12px;margin:10px 0;
+    background:#fff3cd;color:#664d03;border:1px solid #ffecb5;
+  }
+  .ok{background:#d1e7dd;color:#0f5132;border:1px solid #badbcc;}
+  .warn{background:#fff3cd;color:#664d03;border:1px solid #ffecb5;}
+  .bad{background:#f8d7da;color:#842029;border:1px solid #f5c2c7;}
+</style>
+</head>
+<body>
+
+<h1>Gesundheits-Check V2.1</h1>
+
+<div class="card" id="authBox">
+  <h3>Anmeldung</h3>
+  <div class="row">
+    <div><label>E-Mail</label><input id="email" type="text"></div>
+    <div><label>Passwort</label><input id="pass" type="password"></div>
+  </div>
+  <div class="btnrow" style="margin-top:10px;">
+    <button onclick="login()">Login</button>
+    <button class="secondary" onclick="registerUser()">Registrieren</button>
+    <button class="secondary" onclick="logout()">Logout</button>
+  </div>
+  <p class="small" id="authMsg"></p>
+</div>
+
+<div id="weeklyBanner" class="banner warn" style="display:none;"></div>
+
+<div class="card">
+  <div class="row">
+    <div>
+      <label>Datum</label>
+      <input id="date" type="date"/>
+    </div>
+    <div>
+      <label>Ansicht</label>
+      <select id="view" onchange="render()">
+        <option value="today">Heute / Tag</option>
+        <option value="history">Historie</option>
+        <option value="stats">Auswertung</option>
+      </select>
+    </div>
+  </div>
+  <p class="small">
+    Daten bleiben lokal auf deinem Gerät. Für Sicherheit: 1×/Woche „Backup exportieren“.
+    <br>Neu in 2.1: automatischer Tageswechsel + Wochenziel + Mess-Hinweis.
+  </p>
+</div>
+
+<!-- TODAY VIEW -->
+<div id="todayView">
+
+  <div class="card">
+    <h3>Checkliste</h3>
+    <label><input type="checkbox" id="c_mag"> Magnesium abends genommen</label>
+    <label><input type="checkbox" id="c_bp"> Blutdruck gemessen</label>
+    <label><input type="checkbox" id="c_water"> 2+ Liter Wasser</label>
+    <label><input type="checkbox" id="c_steps"> 7000+ Schritte</label>
+    <label><input type="checkbox" id="c_walk"> Spaziergang nach Essen</label>
+    <label><input type="checkbox" id="c_food"> Protein & Gemüse</label>
+    <label><input type="checkbox" id="c_sweet"> Süsses moderat (nur nach Essen)</label>
+
+    <div style="margin-top:12px;">
+      <div><strong>Score:</strong> <span id="scoreTxt">0%</span> <span class="pill" id="scoreCount">0/7</span></div>
+      <div class="progress" style="margin-top:8px;"><div class="bar" id="scoreBar"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Messwerte (optional)</h3>
+    <div class="row">
+      <div>
+        <label>Blutdruck SYS</label>
+        <input type="number" id="bp_sys" placeholder="z.B. 140"/>
+      </div>
+      <div>
+        <label>Blutdruck DIA</label>
+        <input type="number" id="bp_dia" placeholder="z.B. 90"/>
+      </div>
+      <div>
+        <label>Puls</label>
+        <input type="number" id="bp_pulse" placeholder="z.B. 59"/>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div>
+        <label>Gewicht (kg) (wöchentlich ok)</label>
+        <input type="number" id="w_kg" step="0.1" placeholder="z.B. 89.0"/>
+      </div>
+      <div>
+        <label>Bauch (cm) (wöchentlich ok)</label>
+        <input type="number" id="waist_cm" step="0.1" placeholder="z.B. 99.0"/>
+      </div>
+      <div>
+        <label>Schritte (optional)</label>
+        <input type="number" id="steps" placeholder="z.B. 5600"/>
+      </div>
+    </div>
+
+    <label style="margin-top:10px;">Notiz</label>
+    <textarea id="note" placeholder="z.B. Pasta-Tag, Schlaf gut, etc."></textarea>
+  </div>
+
+  <div class="card">
+    <div class="btnrow">
+      <button onclick="saveDay()">Speichern</button>
+      <button class="secondary" onclick="loadDay()">Neu laden</button>
+      <button class="danger" onclick="clearDay()">Tag löschen</button>
+    </div>
+    <div class="btnrow" style="margin-top:10px;">
+      <button class="secondary" onclick="exportBackup()">Backup exportieren (JSON)</button>
+      <button class="secondary" onclick="document.getElementById('importFile').click()">Backup importieren</button>
+      <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importBackup(event)"/>
+    </div>
+    <div class="btnrow" style="margin-top:10px;">
+      <button class="secondary" onclick="exportCSV()">Export CSV (Excel)</button>
+    </div>
+    <p class="small">Auf iPhone findest du Downloads meist in „Dateien“ → „Downloads“.</p>
+  </div>
+
+</div>
+
+<!-- HISTORY VIEW -->
+<div id="historyView" style="display:none;">
+  <div class="card">
+    <h3>Historie</h3>
+    <p class="small">Sortiert nach Datum (neu → alt). Tippe eine Zeile zum Bearbeiten.</p>
+    <div id="historyTable"></div>
+  </div>
+</div>
+
+<!-- STATS VIEW -->
+<div id="statsView" style="display:none;">
+  <div class="card">
+    <h3>Auswertung</h3>
+    <div class="row">
+      <div>
+        <label>Zeitraum</label>
+        <select id="statsRange" onchange="renderStats()">
+          <option value="week">Woche</option>
+          <option value="month">Monat</option>
+          <option value="year">Jahr</option>
+        </select>
+      </div>
+      <div>
+        <label>Referenzdatum</label>
+        <input id="statsRef" type="date" onchange="renderStats()"/>
+      </div>
+    </div>
+
+    <div id="statsOut" style="margin-top:12px;"></div>
+    <p class="small">
+      Wochenziel in 2.1: Ø Score ≥ 70% (gesund & stabil).  
+      Für detaillierte Diagramme: CSV exportieren und in Excel/Numbers auswerten.
+    </p>
+  </div>
+</div>
+
+<script>
+    // ===== SERVER API =====
+async function api(action, payload=null, query="") {
+  const url = `api.php?action=${encodeURIComponent(action)}${query}`;
+  const res = await fetch(url, {
+    method: payload ? "POST" : "GET",
+    headers: payload ? {"Content-Type":"application/json"} : {},
+    body: payload ? JSON.stringify(payload) : null,
+    credentials: "include"
+  });
+  return await res.json();
+}
+
+function setMsg(t){
+  const el = document.getElementById("authMsg");
+  if(el) el.innerText = t;
+}
+
+async function registerUser(){
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("pass").value;
+  const r = await api("register", {email, password});
+  setMsg(r.ok ? "Registrierung ok. Jetzt einloggen." : `Fehler: ${r.error}`);
+}
+
+async function login(){
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("pass").value;
+  const r = await api("login", {email, password});
+  setMsg(r.ok ? "Eingeloggt ✅" : `Login fehlgeschlagen: ${r.error}`);
+  if (r.ok) await loadDay();
+}
+
+async function logout(){
+  await api("logout");
+  setMsg("Ausgeloggt.");
+}
+
+  // ---------- Storage ----------
+  const KEY = "healthcheck_v21_days"; // object { "YYYY-MM-DD": dayData }
+  function getAll(){ return JSON.parse(localStorage.getItem(KEY) || "{}"); }
+  function setAll(obj){ localStorage.setItem(KEY, JSON.stringify(obj)); }
+
+  // ---------- Date helpers ----------
+  function todayISO(){
+    const d = new Date();
+    const tz = d.getTimezoneOffset()*60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+  function parseISO(s){ return new Date(s+"T00:00:00"); }
+
+  // ISO week helpers
+  function isoWeek(d){
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+  }
+  function yearOfISOWeek(d){
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    return d.getUTCFullYear();
+  }
+
+  // ---------- UI binding ----------
+  const checks = [
+    ["c_mag","Magnesium"],
+    ["c_bp","BP_Messen"],
+    ["c_water","Wasser_2L"],
+    ["c_steps","Schritte_7000"],
+    ["c_walk","Spaziergang"],
+    ["c_food","Protein_Gemuese"],
+    ["c_sweet","Sweets_moderat"]
+  ];
+
+  function calcScore(){
+    let n=0;
+    for (const [id] of checks){
+      if (document.getElementById(id).checked) n++;
+    }
+    const pct = Math.round(n / checks.length * 100);
+    document.getElementById("scoreTxt").innerText = pct + "%";
+    document.getElementById("scoreCount").innerText = n + "/" + checks.length;
+    document.getElementById("scoreBar").style.width = pct + "%";
+    return {n,pct};
+  }
+
+  // Attach change listeners
+  for (const [id] of checks){
+    document.addEventListener("change", (e)=>{
+      if (e.target && e.target.id === id) calcScore();
+    });
+  }
+
+  function numOrNull(id){
+    const v = document.getElementById(id).value;
+    if(v === "" || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function getFormData(){
+    const {n,pct} = calcScore();
+    return {
+      checks: Object.fromEntries(checks.map(([id,name]) => [name, document.getElementById(id).checked])),
+      score_count: n,
+      score_percent: pct,
+      bp_sys: numOrNull("bp_sys"),
+      bp_dia: numOrNull("bp_dia"),
+      bp_pulse: numOrNull("bp_pulse"),
+      weight_kg: numOrNull("w_kg"),
+      waist_cm: numOrNull("waist_cm"),
+      steps: numOrNull("steps"),
+      note: (document.getElementById("note").value || "").trim()
+    };
+  }
+
+  function setFormData(d){
+    // reset defaults
+    for (const [id] of checks) document.getElementById(id).checked = false;
+    document.getElementById("bp_sys").value = "";
+    document.getElementById("bp_dia").value = "";
+    document.getElementById("bp_pulse").value = "";
+    document.getElementById("w_kg").value = "";
+    document.getElementById("waist_cm").value = "";
+    document.getElementById("steps").value = "";
+    document.getElementById("note").value = "";
+
+    if(!d){ calcScore(); return; }
+    for (const [id,name] of checks){
+      if (d.checks && typeof d.checks[name] === "boolean") document.getElementById(id).checked = d.checks[name];
+    }
+    if (d.bp_sys!=null) document.getElementById("bp_sys").value = d.bp_sys;
+    if (d.bp_dia!=null) document.getElementById("bp_dia").value = d.bp_dia;
+    if (d.bp_pulse!=null) document.getElementById("bp_pulse").value = d.bp_pulse;
+    if (d.weight_kg!=null) document.getElementById("w_kg").value = d.weight_kg;
+    if (d.waist_cm!=null) document.getElementById("waist_cm").value = d.waist_cm;
+    if (d.steps!=null) document.getElementById("steps").value = d.steps;
+    if (d.note) document.getElementById("note").value = d.note;
+    calcScore();
+  }
+
+  async function saveDay(){
+  const date = document.getElementById("date").value;
+  if(!date){ alert("Bitte Datum wählen."); return; }
+
+  const data = getFormData();
+  const r = await api("save_day", {date, data});
+
+  if(!r.ok){
+    alert("Speichern fehlgeschlagen — bist du eingeloggt?");
+    return;
+  }
+
+  alert("Gespeichert: " + date);
+}
+
+
+ async function loadDay(){
+  const date = document.getElementById("date").value;
+  if(!date){ return; }
+
+  const r = await api("get_day", null, `&date=${encodeURIComponent(date)}`);
+
+  if(!r.ok){
+    setFormData(null);
+    return;
+  }
+
+  setFormData(r.data || null);
+}
+
+
+  function clearDay(){
+    const date = document.getElementById("date").value;
+    if(!date){ alert("Bitte Datum wählen."); return; }
+    if(!confirm("Diesen Tag wirklich löschen?")) return;
+    const all = getAll();
+    delete all[date];
+    setAll(all);
+    setFormData(null);
+    renderHistory();
+    renderStats();
+    updateWeeklyBanner();
+  }
+
+  // ---------- Auto day switch (2.1) ----------
+  let currentDate = null;
+  function ensureToday(){
+    const t = todayISO();
+    if(currentDate === null){
+      currentDate = t;
+      document.getElementById("date").value = t;
+      document.getElementById("statsRef").value = t;
+      loadDay(); // loads if exists, else empty -> acts like reset
+      updateWeeklyBanner();
+      return;
+    }
+    if(t !== currentDate){
+      currentDate = t;
+      // Switch date to today and load empty/new day automatically
+      document.getElementById("date").value = t;
+      document.getElementById("statsRef").value = t;
+      setFormData(null); // visually reset for new day
+      loadDay();         // if already saved for today, it loads it
+      updateWeeklyBanner();
+      // Optional: small toast
+      // alert("Neuer Tag gestartet: " + t);
+    }
+  }
+
+  // ---------- Weekly measurement banner (2.1) ----------
+  function updateWeeklyBanner(){
+    const banner = document.getElementById("weeklyBanner");
+    const all = getAll();
+    const dates = Object.keys(all).sort();
+    const now = parseISO(todayISO());
+
+    // Find last date with weight or waist value
+    let lastMeas = null;
+    for(let i=dates.length-1; i>=0; i--){
+      const d = all[dates[i]];
+      if((d.weight_kg!=null) || (d.waist_cm!=null)){
+        lastMeas = dates[i];
+        break;
+      }
+    }
+
+    // If none, show reminder
+    if(!lastMeas){
+      banner.className = "banner warn";
+      banner.style.display = "";
+      banner.innerText = "Hinweis: Du hast noch keine wöchentliche Messung (Gewicht/Bauch) erfasst. Trage es 1× pro Woche ein (z.B. Sonntag).";
+      return;
+    }
+
+    const last = parseISO(lastMeas);
+    const diffDays = Math.round((now - last) / 86400000);
+
+    if(diffDays >= 7){
+      banner.className = "banner warn";
+      banner.style.display = "";
+      banner.innerText = `Hinweis: Letzte Gewicht/Bauch-Messung am ${lastMeas}. Bitte diese Woche wieder eintragen (1×/Woche reicht).`;
+    } else {
+      banner.className = "banner ok";
+      banner.style.display = "";
+      banner.innerText = `Wöchentliche Messung ok ✅ Letzte Messung: ${lastMeas} (${diffDays} Tage her).`;
+    }
+  }
+
+  // ---------- History ----------
+  function renderHistory(){
+    const all = getAll();
+    const dates = Object.keys(all).sort().reverse();
+    if(dates.length === 0){
+      document.getElementById("historyTable").innerHTML = "<p class='small'>Noch keine Daten.</p>";
+      return;
+    }
+    let html = "<table><thead><tr><th>Datum</th><th>Score</th><th>BP</th><th>Gewicht</th><th>Bauch</th><th>Notiz</th></tr></thead><tbody>";
+    for(const dt of dates){
+      const d = all[dt];
+      const bp = (d.bp_sys!=null && d.bp_dia!=null) ? `${d.bp_sys}/${d.bp_dia}` : "";
+      const w = (d.weight_kg!=null) ? d.weight_kg : "";
+      const wa = (d.waist_cm!=null) ? d.waist_cm : "";
+      const note = (d.note||"").slice(0,60);
+      html += `<tr onclick="jumpToDate('${dt}')" style="cursor:pointer">
+        <td>${dt}</td>
+        <td>${d.score_percent ?? ""}%</td>
+        <td>${bp}</td>
+        <td>${w}</td>
+        <td>${wa}</td>
+        <td>${note}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+    document.getElementById("historyTable").innerHTML = html;
+  }
+
+  function jumpToDate(dt){
+    document.getElementById("date").value = dt;
+    document.getElementById("view").value = "today";
+    render();
+    loadDay();
+  }
+
+  // ---------- Stats ----------
+  function renderStats(){
+    const out = document.getElementById("statsOut");
+    const all = getAll();
+    const range = document.getElementById("statsRange").value;
+    const ref = document.getElementById("statsRef").value || todayISO();
+    const refD = parseISO(ref);
+
+    const dates = Object.keys(all).sort();
+    const sel = [];
+    for(const dt of dates){
+      const d = parseISO(dt);
+      if(range === "week"){
+        if(isoWeek(d) === isoWeek(refD) && yearOfISOWeek(d) === yearOfISOWeek(refD)) sel.push(dt);
+      } else if(range === "month"){
+        if(d.getFullYear() === refD.getFullYear() && d.getMonth() === refD.getMonth()) sel.push(dt);
+      } else {
+        if(d.getFullYear() === refD.getFullYear()) sel.push(dt);
+      }
+    }
+
+    if(sel.length === 0){
+      out.innerHTML = "<p class='small'>Keine Daten im ausgewählten Zeitraum.</p>";
+      return;
+    }
+
+    const vals = sel.map(dt => ({dt, ...all[dt]}));
+
+    function avg(arr){ const f = arr.filter(x=>x!=null); return f.length? (f.reduce((a,b)=>a+b,0)/f.length): null; }
+    function min(arr){ const f = arr.filter(x=>x!=null); return f.length? Math.min(...f): null; }
+    function max(arr){ const f = arr.filter(x=>x!=null); return f.length? Math.max(...f): null; }
+    function trend(first,last){ if(first==null||last==null) return null; return (last-first); }
+
+    const scoreAvg = avg(vals.map(v=>v.score_percent));
+    const sysAvg = avg(vals.map(v=>v.bp_sys));
+    const diaAvg = avg(vals.map(v=>v.bp_dia));
+    const wAvg = avg(vals.map(v=>v.weight_kg));
+    const waistAvg = avg(vals.map(v=>v.waist_cm));
+
+    const sysMin = min(vals.map(v=>v.bp_sys));
+    const sysMax = max(vals.map(v=>v.bp_sys));
+    const diaMin = min(vals.map(v=>v.bp_dia));
+    const diaMax = max(vals.map(v=>v.bp_dia));
+
+    const first = vals[0], last = vals[vals.length-1];
+    const wTrend = trend(first.weight_kg, last.weight_kg);
+    const waistTrend = trend(first.waist_cm, last.waist_cm);
+    const sysTrend = trend(first.bp_sys, last.bp_sys);
+    const diaTrend = trend(first.bp_dia, last.bp_dia);
+
+    const label = range==="week" ? `Woche ${isoWeek(refD)} (${yearOfISOWeek(refD)})`
+                : range==="month" ? `${refD.toLocaleString('de-CH',{month:'long'})} ${refD.getFullYear()}`
+                : `${refD.getFullYear()}`;
+
+    function fmt(n, digits=1){
+      if(n==null) return "—";
+      const p = Math.pow(10,digits);
+      return (Math.round(n*p)/p).toString().replace(".",",");
+    }
+
+    // Weeks goal (2.1)
+    const goal = 70;
+    let goalBadge = "";
+    if(range === "week" && scoreAvg != null){
+      if(scoreAvg >= goal){
+        goalBadge = `<div class="banner ok">Wochenziel erreicht ✅ Score Ø ${fmt(scoreAvg,0)}% (Ziel ≥ ${goal}%)</div>`;
+      } else {
+        goalBadge = `<div class="banner warn">Wochenziel noch nicht erreicht: Score Ø ${fmt(scoreAvg,0)}% (Ziel ≥ ${goal}%). Tipp: Spaziergang nach Essen + Wasser bringt oft schnell Punkte.</div>`;
+      }
+    }
+
+    out.innerHTML = `
+      ${goalBadge}
+      <p><strong>${label}</strong> – <span class="pill">${sel.length} Tage</span></p>
+      <table>
+        <tr><th>Score Ø</th><td>${fmt(scoreAvg,0)}%</td><th>Trend</th><td>${fmt(trend(first.score_percent,last.score_percent),0)}%</td></tr>
+        <tr><th>BP Ø</th><td>${fmt(sysAvg,0)}/${fmt(diaAvg,0)}</td><th>Min/Max</th><td>${fmt(sysMin,0)}/${fmt(diaMin,0)} – ${fmt(sysMax,0)}/${fmt(diaMax,0)}</td></tr>
+        <tr><th>BP Trend</th><td>${fmt(sysTrend,0)}/${fmt(diaTrend,0)}</td><th></th><td></td></tr>
+        <tr><th>Gewicht Ø</th><td>${fmt(wAvg,1)} kg</td><th>Trend</th><td>${fmt(wTrend,1)} kg</td></tr>
+        <tr><th>Bauch Ø</th><td>${fmt(waistAvg,1)} cm</td><th>Trend</th><td>${fmt(waistTrend,1)} cm</td></tr>
+      </table>
+      <p class="small">Trend = letzter Wert minus erster Wert im Zeitraum (negativ ist gut bei Gewicht/Bauch/BP).</p>
+    `;
+  }
+
+  // ---------- Backup / CSV ----------
+  function download(filename, text, mime="text/plain"){
+    const blob = new Blob([text], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportBackup(){
+    const all = getAll();
+    const payload = { version: "2.1", exported_at: new Date().toISOString(), days: all };
+    download(`healthcheck_backup_${todayISO()}.json`, JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function importBackup(evt){
+    const file = evt.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const payload = JSON.parse(e.target.result);
+        if(!payload || !payload.days) throw new Error("Ungültiges Backup-Format.");
+        if(!confirm("Backup importieren? Vorhandene Daten werden zusammengeführt (gleiche Tage überschrieben).")) return;
+        const all = getAll();
+        for(const [k,v] of Object.entries(payload.days)){ all[k] = v; }
+        setAll(all);
+        alert("Import erfolgreich.");
+        renderHistory();
+        renderStats();
+        loadDay();
+        updateWeeklyBanner();
+      }catch(err){
+        alert("Import fehlgeschlagen: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    evt.target.value = "";
+  }
+
+  function exportCSV(){
+    const all = getAll();
+    const dates = Object.keys(all).sort();
+    const header = [
+      "Date","ScorePercent","Magnesium","BP_Messen","Wasser_2L","Schritte_7000","Spaziergang","Protein_Gemuese","Sweets_moderat",
+      "BP_SYS","BP_DIA","Puls","Gewicht_kg","Bauch_cm","Schritte","Notiz"
+    ];
+    const rows = [header.join(",")];
+    for(const dt of dates){
+      const d = all[dt];
+      const c = d.checks || {};
+      const row = [
+        dt,
+        d.score_percent ?? "",
+        c["Magnesium"] ?? "",
+        c["BP_Messen"] ?? "",
+        c["Wasser_2L"] ?? "",
+        c["Schritte_7000"] ?? "",
+        c["Spaziergang"] ?? "",
+        c["Protein_Gemuese"] ?? "",
+        c["Sweets_moderat"] ?? "",
+        d.bp_sys ?? "",
+        d.bp_dia ?? "",
+        d.bp_pulse ?? "",
+        d.weight_kg ?? "",
+        d.waist_cm ?? "",
+        d.steps ?? "",
+        (""+(d.note||"")).replaceAll('"','""')
+      ];
+      row[row.length-1] = `"${row[row.length-1]}"`;
+      rows.push(row.join(","));
+    }
+    download(`healthcheck_${todayISO()}.csv`, rows.join("\n"), "text/csv");
+  }
+
+  // ---------- View render ----------
+  function render(){
+    const v = document.getElementById("view").value;
+    document.getElementById("todayView").style.display = (v==="today") ? "" : "none";
+    document.getElementById("historyView").style.display = (v==="history") ? "" : "none";
+    document.getElementById("statsView").style.display = (v==="stats") ? "" : "none";
+    if(v==="history") renderHistory();
+    if(v==="stats") renderStats();
+  }
+
+  // ---------- Init ----------
+  document.getElementById("date").value = todayISO();
+  document.getElementById("statsRef").value = todayISO();
+  currentDate = todayISO();
+  renderHistory();
+  loadDay();
+  renderStats();
+  updateWeeklyBanner();
+  render();
+
+  // Auto day check every minute
+  setInterval(ensureToday, 60 * 1000);
+
+  // Also update banner when date picker changes
+  document.getElementById("date").addEventListener("change", () => {
+    loadDay();
+  });
+</script>
+
+</body>
+</html>

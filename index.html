@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Gesundheits-Check</title>
+
+<style>
+body{font-family:-apple-system,Arial,sans-serif;background:#f5f5f7;margin:0;padding:16px;}
+h1{text-align:center}
+.card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+.row{display:flex;gap:10px;flex-wrap:wrap;}
+.row>div{flex:1;min-width:140px;}
+input,textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:16px;}
+.btnrow{display:flex;gap:10px;margin-top:10px;}
+button{flex:1;padding:12px;border:none;border-radius:12px;background:#007aff;color:#fff;font-size:16px;}
+.small{color:#666;font-size:13px;margin-top:6px;}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+<h1>Gesundheits-Check - V1</h1>
+
+<div class="card">
+<div class="row">
+<div><input id="email" placeholder="E-Mail"></div>
+<div><input id="pw" type="password" placeholder="Passwort"></div>
+</div>
+
+<div class="btnrow">
+<button id="btnRegister">Registrieren</button>
+<button id="btnLogin">Login</button>
+<button id="btnLogout">Logout</button>
+</div>
+
+<div class="btnrow">
+<button id="btnLoad">Heute laden</button>
+<button id="btnSave">Heute speichern</button>
+</div>
+
+<div class="small" id="status">bereit</div>
+</div>
+
+<div class="card">
+<h2>Heute</h2>
+
+<div class="row">
+<div><input data-key="bp_am" placeholder="Blutdruck morgens 140/90"></div>
+<div><input data-key="bp_pm" placeholder="Blutdruck abends"></div>
+</div>
+
+<div class="row">
+<div><input data-key="weight" type="number" step="0.1" placeholder="Gewicht kg"></div>
+<div><input data-key="waist" type="number" step="0.1" placeholder="Bauch cm"></div>
+</div>
+
+<div class="row">
+<div><input data-key="steps" type="number" placeholder="Schritte"></div>
+<div><textarea data-key="notes" placeholder="Notizen"></textarea></div>
+</div>
+
+<label><input data-key="magnesium_abends" type="checkbox"> Magnesium genommen</label>
+<label><input data-key="blutdruck_gemessen" type="checkbox"> Blutdruck gemessen</label>
+<label><input data-key="genug_getrunken" type="checkbox"> Genug getrunken</label>
+</div>
+
+<div class="card">
+<h2>Charts (letzte 30 Tage)</h2>
+<canvas id="chartWeight" height="120"></canvas>
+<canvas id="chartWaist" height="120"></canvas>
+<canvas id="chartBP" height="140"></canvas>
+</div>
+
+<script>
+(() => {
+
+const API='https://magu-healthapp.magu-it.ch/api.php';
+const $=id=>document.getElementById(id);
+const status=t=>$('status').textContent=t;
+const todayISO=()=>new Date().toISOString().slice(0,10);
+
+function collect(){
+  const d={};
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    d[el.dataset.key]=el.type==='checkbox'?el.checked:el.value;
+  });
+  return d;
+}
+
+function apply(d){
+  if(!d)return;
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    if(!(el.dataset.key in d))return;
+    if(el.type==='checkbox')el.checked=d[el.dataset.key];
+    else el.value=d[el.dataset.key];
+  });
+}
+
+async function api(a,p={},m='POST'){
+  const r=await fetch(API+'?action='+a,{method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+  const j=await r.json();
+  if(!j.ok)throw j.error;
+  return j;
+}
+
+async function loadToday(){
+  try{
+    const r=await fetch(API+'?action=get_day&date='+todayISO());
+    const j=await r.json();
+    if(j.ok&&j.data)apply(j.data);
+  }catch{}
+}
+
+async function saveToday(){
+  try{
+    await api('save_day',{date:todayISO(),data:collect()});
+    status('gespeichert');
+  }catch(e){status('Fehler '+e);}
+}
+
+$('btnRegister').onclick=()=>api('register',{email:$('email').value,password:$('pw').value}).then(()=>alert('Registriert'));
+$('btnLogin').onclick=async()=>{await api('login',{email:$('email').value,password:$('pw').value});await loadToday();loadCharts();status('eingeloggt');};
+$('btnLogout').onclick=()=>api('logout',{}).then(()=>status('ausgeloggt'));
+$('btnLoad').onclick=loadToday;
+$('btnSave').onclick=saveToday;
+
+/* ===== CHARTS ===== */
+
+let cW,cWa,cBP;
+
+function ensureCharts(){
+ if(!cW)cW=new Chart(chartWeight,{type:'line',data:{labels:[],datasets:[{label:'Gewicht',data:[]}]}}); 
+ if(!cWa)cWa=new Chart(chartWaist,{type:'line',data:{labels:[],datasets:[{label:'Bauch',data:[]}]}}); 
+ if(!cBP)cBP=new Chart(chartBP,{type:'line',data:{labels:[],datasets:[{label:'SYS',data:[]},{label:'DIA',data:[]}]}}); 
+}
+
+function norm(d){
+ if(!d)return{};
+ let sys=null,dia=null;
+ if(d.bp_am){
+   const m=d.bp_am.match(/(\d+)\/(\d+)/);
+   if(m){sys=+m[1];dia=+m[2];}
+ }
+ return{w:+d.weight||null,waist:+d.waist||null,sys,dia};
+}
+
+async function loadCharts(){
+ try{
+  const to=todayISO();
+  const d=new Date();d.setDate(d.getDate()-30);
+  const from=d.toISOString().slice(0,10);
+
+  const r=await fetch(API+`?action=list_range&from=${from}&to=${to}`);
+  const j=await r.json();
+  if(!j.ok)return;
+
+  ensureCharts();
+
+  const L=[],W=[],WA=[],S=[],D=[];
+  j.rows.forEach(x=>{
+    L.push(x.date.slice(5));
+    const n=norm(x.data);
+    W.push(n.w);
+    WA.push(n.waist);
+    S.push(n.sys);
+    D.push(n.dia);
+  });
+
+  cW.data.labels=L;cW.data.datasets[0].data=W;cW.update();
+  cWa.data.labels=L;cWa.data.datasets[0].data=WA;cWa.update();
+  cBP.data.labels=L;cBP.data.datasets[0].data=S;cBP.data.datasets[1].data=D;cBP.update();
+
+ }catch{}
+}
+
+})();
+</script>
+</body>
+</html> 

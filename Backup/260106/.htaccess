@@ -1,0 +1,5 @@
+php_value memory_limit 256M
+php_value max_input_vars 10000
+
+Options -Indexes
+DirectoryIndex index.html index.php

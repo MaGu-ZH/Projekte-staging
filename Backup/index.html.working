@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gesundheits-Check</title>
+  <style>
+    body{font-family:-apple-system,Arial,sans-serif;background:#f5f5f7;margin:0;padding:16px;}
+    h1{margin:6px 0 14px;text-align:center;font-size:22px;}
+    h2{margin:0 0 10px;font-size:18px;}
+    .card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+    .row{display:flex;gap:10px;flex-wrap:wrap;}
+    .row > div{flex:1;min-width:140px;}
+    label{display:block;margin:8px 0 6px;font-weight:600;}
+    input[type="number"], input[type="text"], input[type="email"], input[type="password"], textarea, select{
+      width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;
+      background:#fff;color:#111;
+    }
+    textarea{min-height:70px;resize:vertical;}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+    button{
+      flex:1;min-width:140px;
+      padding:12px;border:none;border-radius:12px;font-size:16px;
+      background:#007aff;color:#fff;
+      cursor:pointer;
+    }
+    button.secondary{background:#8e8e93;}
+    button.danger{background:#ff3b30;}
+    .small{color:#666;font-size:13px;line-height:1.4;margin-top:6px;}
+    .banner{
+      border-radius:14px;padding:12px;margin:10px 0;
+      background:#fff3cd;color:#664d03;border:1px solid #ffecb5;
+    }
+    .ok{background:#d1e7dd;color:#0f5132;border:1px solid #badbcc;}
+    .warn{background:#fff3cd;color:#664d03;border:1px solid #ffecb5;}
+    .bad{background:#f8d7da;color:#842029;border:1px solid #f5c2c7;}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eee;font-size:12px;margin-left:6px;}
+    .checkline{display:flex;gap:10px;align-items:center;margin:8px 0;}
+    .checkline input{width:auto;}
+    .footer-space{height:90px;}
+  </style>
+
+  <style>
+    /* Fix: Sync Buttons IMMER klickbar & sichtbar (falls irgendwas global reinfunkt) */
+    #syncCard button, #syncCard input { pointer-events:auto !important; opacity:1 !important; }
+  </style>
+	
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script> 
+	
+</head>
+
+<body>
+  <h1>Gesundheits-Check</h1>
+	
+  <!-- EINZIGE Anmeldung + Sync-Steuerung -->
+  <div class="card" id="syncCard">
+    <h2>Anmeldung <span class="pill" id="loginState">nicht eingeloggt</span></h2>
+
+    <div class="row">
+      <div>
+        <label for="email">E-Mail</label>
+        <input id="email" type="email" placeholder="z.B. admin@domain.ch" autocomplete="username" />
+      </div>
+      <div>
+        <label for="pw">Passwort</label>
+        <input id="pw" type="password" placeholder="mind. 8 Zeichen" autocomplete="current-password" />
+      </div>
+    </div>
+
+    <div class="btnrow">
+      <button id="btnRegister" class="secondary">Registrieren</button>
+      <button id="btnLogin">Login</button>
+      <button id="btnLogout" class="danger">Logout</button>
+    </div>
+
+    <div class="btnrow">
+      <button id="btnLoad" class="secondary">Heute laden</button>
+      <button id="btnSave">Heute speichern</button>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+        <input id="autoSave" type="checkbox" checked />
+        Auto-Speichern
+      </label>
+    </div>
+
+    <div class="small" id="syncStatus">Status: bereit</div>
+  </div>
+
+  <!-- Tagesdaten (minimal, du kannst jederzeit erweitern) -->
+  <div class="card">
+    <h2>Heute</h2>
+    <div class="row">
+      <div>
+        <label>Blutdruck morgens</label>
+        <input data-key="bp_am" type="text" placeholder="z.B. 140/90" />
+      </div>
+      <div>
+        <label>Blutdruck abends</label>
+        <input data-key="bp_pm" type="text" placeholder="z.B. 130/80" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Gewicht (kg)</label>
+        <input data-key="weight" type="number" step="0.1" />
+      </div>
+      <div>
+        <label>Bauchumfang (cm)</label>
+        <input data-key="waist" type="number" step="0.1" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Schritte</label>
+        <input data-key="steps" type="number" />
+      </div>
+      <div>
+        <label>Notizen</label>
+        <textarea data-key="notes" placeholder="kurz…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkliste (Beispiele) -->
+  <div class="card">
+    <h2>Checkliste</h2>
+
+    <div class="checkline">
+      <input data-key="magnesium_abends" type="checkbox" />
+      <div>Magnesium abends genommen</div>
+    </div>
+
+    <div class="checkline">
+      <input data-key="blutdruck_gemessen" type="checkbox" />
+      <div>Blutdruck gemessen</div>
+    </div>
+
+    <div class="checkline">
+      <input data-key="genug_getrunken" type="checkbox" />
+      <div>Genug getrunken (1–1.5L)</div>
+    </div>
+  </div>
+
+  <!-- Grafikcard -->
+	
+<div class="card" id="chartCard">
+  <h2>Grafik</h2>
+  <div style="margin-top:14px; border:1px dashed #ccc; border-radius:12px; padding:8px;">
+    <canvas id="chartWeight" height="140"></canvas>
+  </div>
+  <div class="small">Wenn du den gestrichelten Rahmen siehst, ist Canvas OK ✅</div>
+</div> 
+	
+	
+<script>
+(() => {
+  // ABSOLUT (verhindert Pfad-Probleme)
+  const API = 'https://magu-healthapp.magu-it.ch/api.php';
+  const LS_KEY = 'magu_healthapp_backup_v1';
+
+  const $ = (id) => document.getElementById(id);
+  const status = (t) => $('syncStatus').textContent = 'Status: ' + t;
+
+  const todayISO = () => new Date().toISOString().slice(0,10);
+
+  function setLoginState(isLoggedIn) {
+    $('loginState').textContent = isLoggedIn ? 'eingeloggt' : 'nicht eingeloggt';
+    $('loginState').style.background = isLoggedIn ? '#d1e7dd' : '#eee';
+  }
+
+  function collectData() {
+    const data = {};
+    document.querySelectorAll('[data-key]').forEach(el => {
+      const key = el.getAttribute('data-key');
+      if (!key) return;
+      if (el.type === 'checkbox') data[key] = !!el.checked;
+      else data[key] = (el.value ?? '').toString();
+    });
+    return data;
+  }
+
+  function applyData(data) {
+    if (!data) return;
+    document.querySelectorAll('[data-key]').forEach(el => {
+      const key = el.getAttribute('data-key');
+      if (!(key in data)) return;
+      if (el.type === 'checkbox') el.checked = !!data[key];
+      else el.value = (data[key] ?? '').toString();
+    });
+  }
+
+  function backupLocal(date, data) {
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    all[date] = { data, saved_at: new Date().toISOString() };
+    localStorage.setItem(LS_KEY, JSON.stringify(all));
+  }
+
+  function loadLocal(date) {
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    return all[date]?.data ?? null;
+  }
+
+  async function api(action, payload, method='POST') {
+    const url = API + '?action=' + encodeURIComponent(action);
+    const opts = { method, headers: {} };
+    if (method !== 'GET') {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(payload ?? {});
+    }
+    const res = await fetch(url, opts);
+    const txt = await res.text();
+    let j = null;
+    try { j = JSON.parse(txt); }
+    catch { throw new Error('API antwortet nicht mit JSON: ' + txt.slice(0,120)); }
+    if (!res.ok || !j.ok) throw new Error(j?.error ? (j.error + (j.detail ? ': ' + j.detail : '')) : ('HTTP ' + res.status));
+    return j;
+  }
+
+  async function loadToday() {
+    const date = todayISO();
+    status('lade…');
+
+    try {
+      const res = await fetch(API + '?action=get_day&date=' + encodeURIComponent(date), { method: 'GET' });
+      const j = await res.json();
+
+      if (j.ok) {
+        if (j.data) {
+          applyData(j.data);
+          status('geladen vom Server (' + (j.updated_at || date) + ')');
+          backupLocal(date, j.data);
+          return;
+        }
+        const local = loadLocal(date);
+        if (local) { applyData(local); status('kein Server-Eintrag – lokal geladen'); return; }
+        status('kein Eintrag für heute');
+        return;
+      }
+
+      if (j.error === 'not_logged_in') {
+        const local = loadLocal(date);
+        if (local) { applyData(local); status('nicht eingeloggt – lokales Backup geladen'); }
+        else status('Bitte einloggen');
+        setLoginState(false);
+        return;
+      }
+
+      throw new Error('Antwort: ' + JSON.stringify(j));
+    } catch (e) {
+      const local = loadLocal(date);
+      if (local) {
+        applyData(local);
+        status('Server nicht erreichbar – lokal geladen');
+      } else {
+        status('Server nicht erreichbar – kein lokales Backup');
+      }
+    }
+  }
+
+  let saveTimer = null;
+  async function saveToday() {
+    const date = todayISO();
+    const data = collectData();
+
+    // immer lokal sichern
+    backupLocal(date, data);
+
+    status('speichere (Server)…');
+    try {
+      await api('save_day', { date, data });
+      status('gespeichert (Server + lokal)');
+    } catch (e) {
+      // wenn nicht eingeloggt: Hinweis
+      if ((e.message || '').includes('not_logged_in')) {
+        setLoginState(false);
+        status('Bitte einloggen (lokal gesichert)');
+      } else {
+        status('Server-Speichern fehlgeschlagen – lokal gesichert');
+      }
+    }
+  }
+
+  function scheduleAutoSave() {
+    if (!$('autoSave').checked) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveToday(), 1200);
+  }
+
+  // Events
+  $('btnRegister').addEventListener('click', async () => {
+    try {
+      const email = $('email').value.trim();
+      const password = $('pw').value;
+
+      if (!email) { alert('Bitte E-Mail eingeben'); return; }
+      if (!password || password.length < 8) { alert('Passwort muss mindestens 8 Zeichen haben'); return; }
+
+      status('registriere…');
+      await api('register', { email, password });
+      status('Registrierung ok. Jetzt einloggen.');
+      alert('Registriert! Jetzt bitte auf "Login" tippen.');
+    } catch (e) {
+      status('Registrieren fehlgeschlagen');
+      alert(e.message);
+    }
+  });
+
+  $('btnLogin').addEventListener('click', async () => {
+    try {
+      status('login…');
+      await api('login', { email: $('email').value.trim(), password: $('pw').value });
+      setLoginState(true);
+      status('eingeloggt');
+      await loadToday();
+    } catch (e) {
+      setLoginState(false);
+      status('Login fehlgeschlagen');
+      alert(e.message);
+    }
+  });
+
+  $('btnLogout').addEventListener('click', async () => {
+    try {
+      status('logout…');
+      await api('logout', {});
+      setLoginState(false);
+      status('ausgeloggt');
+    } catch (e) {
+      status('Logout Fehler');
+      alert(e.message);
+    }
+  });
+
+  $('btnLoad').addEventListener('click', loadToday);
+  $('btnSave').addEventListener('click', saveToday);
+
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el && el.matches && el.matches('[data-key]')) scheduleAutoSave();
+  });
+  document.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el && el.matches && el.matches('[data-key]')) scheduleAutoSave();
+  });
+
+  // Start: lokal schnell laden, dann Server versuchen
+  (async () => {
+    const date = todayISO();
+    const local = loadLocal(date);
+    if (local) {
+      applyData(local);
+      status('lokales Backup geladen');
+    } else {
+      status('bereit');
+    }
+    await loadToday();
+  })();
+
+})();
+</script>
+</body>
+</html> 
