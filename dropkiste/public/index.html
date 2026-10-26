@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>Dropkiste · Dateien teilen</title>
+<link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<header><a class="brand" href="/" aria-label="Dropkiste Startseite"><span class="logo"><img src="/box.svg" width="24" height="24" alt=""></span> dropkiste<span class="dot">.</span></a><span class="tag">Einfach sicher teilen.</span></header>
+<main>
+<section id="admin-view" hidden>
+<div class="intro"><span class="eyebrow">DEINE DATEIEN. DEINE EMPFÄNGER.</span><h1>Ab in die Kiste.<br><span>Und sicher ans Ziel.</span></h1><p>Datei hochladen, Menschen einladen, fertig. Deine Datei bleibt nur so lange, wie sie gebraucht wird.</p></div>
+<section id="login-panel" class="card narrow"><h2>Deine Dropkiste öffnen</h2><p>Zum Hochladen mit deinem Verwaltungspasswort anmelden.</p><form id="login-form"><label for="password">Passwort</label><input id="password" type="password" autocomplete="current-password" required><button type="submit">Anmelden <span>→</span></button></form></section>
+<div id="workspace" hidden>
+<div class="workspace-top"><h2>Neue Übergabe</h2><button id="logout" class="text-button" type="button">Abmelden</button></div>
+<form id="upload-form" class="card">
+<label id="dropzone" class="dropzone" for="file"><span class="upload-icon">↑</span><strong id="file-label">Datei auswählen</strong><span>oder hier hineinziehen</span><small id="file-limit"></small><input id="file" type="file" required></label>
+<div class="section-title"><h3>Wer darf herunterladen?</h3><span>Ein eigener Link pro Person</span></div>
+<div id="recipients"></div><button id="add-recipient" class="text-button" type="button">＋ Weitere Person einladen</button>
+<div class="retention"><div><label for="days">Spätestens löschen nach</label><p>Früher, sobald alle Eingeladenen heruntergeladen haben.</p></div><select id="days" aria-label="Aufbewahrungsdauer"></select></div>
+<button type="submit" id="upload-button">Datei hochladen & Links erstellen <span>→</span></button><progress id="progress" max="100" value="0" hidden></progress>
+<p class="fine">Die Links versendest du selbst per E-Mail oder SMS. Jeder Empfänger bestätigt vor dem Download seine eingeladene Adresse oder Telefonnummer.</p>
+</form>
+<section id="links-panel" class="card" hidden><h2>Bereit zum Teilen.</h2><p>Versende jeden Link ausschließlich an die zugehörige Person. Links werden nur jetzt angezeigt.</p><div id="links"></div></section>
+<section class="transfers"><div class="workspace-top"><h2>Deine Übergaben</h2><button class="text-button" id="refresh" type="button">Aktualisieren ↻</button></div><div id="transfers"></div></section>
+</div>
+<div class="benefits"><div><b>01</b><h3>Persönlich eingeladen</h3><p>Jede Person bekommt ihren eigenen Downloadlink.</p></div><div><b>02</b><h3>Nur kurz zu Gast</h3><p>Automatische Löschung nach spätestens 30 Tagen.</p></div><div><b>03</b><h3>Auf jedem Bildschirm</h3><p>Im Browser auf dem Smartphone oder am Computer.</p></div></div>
+</section>
+<section id="invite-view" hidden><div class="intro"><span class="eyebrow">EINE DATEI WARTET AUF DICH</span><h1>Für dich<br><span>in der Kiste.</span></h1></div><div class="card narrow"><div class="upload-icon">↓</div><h2 id="invite-name">Einladung wird geladen …</h2><p id="invite-detail"></p><form id="verify-form" hidden><label id="identity-label" for="identity"></label><input id="identity" required autocomplete="off"><button type="submit">Bestätigen <span>→</span></button><p class="fine">Gib genau die Adresse oder Nummer ein, an die du diesen Link erhalten hast. Bei Telefonnummern bitte die Ländervorwahl verwenden.</p></form><form id="download-form" method="post" action="/api.php?action=download" hidden><input type="hidden" name="csrf"><input type="hidden" name="token"><button type="submit">Datei herunterladen <span>↓</span></button><p class="fine">Sobald alle Eingeladenen die Datei heruntergeladen haben, wird sie gelöscht. Bewahre deine Kopie gut auf.</p></form></div></section>
+<p id="status" role="status" aria-live="polite" hidden></p>
+</main><footer><span>dropkiste.app</span><span>Weniger aufbewahren. Einfach weitergeben.</span></footer>
+</body></html>
