@@ -3,13 +3,14 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {chromium}=require('playwright');
+const BASE=process.env.DROPKISTE_TEST_URL||'http://127.0.0.1:8090';
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
  const errors=[];
  try{
   const admin=await browser.newContext({viewport:{width:1366,height:1000}});
   const p=await admin.newPage();p.on('pageerror',e=>errors.push(e.message));
-  await p.goto('http://127.0.0.1:8090');
+  await p.goto(BASE);
   await p.getByLabel('Passwort',{exact:true}).fill('local-test-password');
   await p.getByRole('button',{name:'Anmelden'}).click();
   await p.locator('#workspace').waitFor({state:'visible'});
@@ -25,7 +26,7 @@ const {chromium}=require('playwright');
   const invitations=[];
   for(const anchor of await p.locator('.link-row a').all()){
    const href=await anchor.getAttribute('href');const body=new URLSearchParams(href.split('?')[1]).get('body');
-   invitations.push(body.match(/http:\/\/127\.0\.0\.1:8090\/#invite=[a-f0-9]+/)[0]);
+   invitations.push(body.match(/https?:\/\/\S+#invite=[a-f0-9]+/)[0]);
   }
   for(let i=0;i<2;i++){
    const context=await browser.newContext({viewport:i?{width:390,height:844}:{width:1366,height:1000},isMobile:!!i,hasTouch:!!i,acceptDownloads:true});
@@ -43,7 +44,7 @@ const {chromium}=require('playwright');
   }
   await p.getByRole('button',{name:'Aktualisieren'}).click();
   await p.waitForFunction(()=>[...document.querySelectorAll('.transfer')].some(t=>t.textContent.includes('Browser-Test.txt')&&t.textContent.includes('2/2 heruntergeladen')&&t.textContent.includes('Beendet')));
-  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const m=await mobile.newPage();await m.goto('http://127.0.0.1:8090');await m.getByLabel('Passwort',{exact:true}).fill('local-test-password');await m.getByRole('button',{name:'Anmelden'}).click();await m.locator('#workspace').waitFor({state:'visible'});assert.equal(await m.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await m.screenshot({path:path.join(__dirname,'runtime','mobile-upload.png'),fullPage:true});
+  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const m=await mobile.newPage();await m.goto(BASE);await m.getByLabel('Passwort',{exact:true}).fill('local-test-password');await m.getByRole('button',{name:'Anmelden'}).click();await m.locator('#workspace').waitFor({state:'visible'});assert.equal(await m.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await m.screenshot({path:path.join(__dirname,'runtime','mobile-upload.png'),fullPage:true});
   assert.deepEqual(errors,[]);
   console.log('PASS browser: desktop upload, per-recipient links, wrong identity rejection, desktop + mobile downloads, completion status, responsive mobile admin, no JavaScript errors.');
  }finally{await browser.close();}

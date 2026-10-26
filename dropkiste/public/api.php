@@ -11,7 +11,7 @@ try {
     $_SESSION['csrf']??=bin2hex(random_bytes(32));
     $action=$_GET['action']??'';
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='session') {
-        json_response(['ok'=>true,'csrf'=>$_SESSION['csrf'],'admin'=>isset($_SESSION['admin_at']) && time()-$_SESSION['admin_at']<=config()['session_seconds'],
+        json_response(['ok'=>true,'csrf'=>$_SESSION['csrf'],'admin'=>current_user()!==null, 'user'=>current_user(), 'delivery'=>['email'=>!empty(config()['smtp']['enabled']),'phone'=>!empty(config()['sms']['enabled'])],
             'limits'=>array_intersect_key(config(),array_flip(['max_file_bytes','max_retention_days','max_recipients']))]);
     }
     if ($_SERVER['REQUEST_METHOD']!=='POST') fail('Methode nicht erlaubt.',405);
@@ -21,23 +21,45 @@ try {
     $in=input();
     if ($action==='login') {
         rate_limit('admin');
-        if (empty(config()['admin_password_hash']) || !password_verify((string)($in['password']??''),config()['admin_password_hash'])) fail('Anmeldung fehlgeschlagen.',401);
-        session_regenerate_id(true);$_SESSION['admin_at']=time();json_response(['ok'=>true]);
+        $login=strtolower(trim((string)($in['email']??'admin')));
+        $password=(string)($in['password']??'');
+        $u=null;
+        if ($login==='admin' || $login==='') {
+            if (!empty(config()['admin_password_hash']) && password_verify($password,config()['admin_password_hash'])) $u=['id'=>'admin','auth_version'=>hash('sha256',config()['admin_password_hash'])];
+        } else {
+            $row=query('SELECT id,password_hash,auth_version,active FROM users WHERE email=?',[$login])->fetch();
+            // Always do a password hash check, including for an unknown address.
+            $valid=password_verify($password,$row['password_hash']??'$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi');
+            if ($row && $row['active'] && $valid) $u=$row;
+        }
+        if (!$u) fail('Anmeldung fehlgeschlagen.',401);
+        session_regenerate_id(true);$_SESSION['user_id']=$u['id'];$_SESSION['auth_version']=$u['auth_version'];$_SESSION['admin_at']=time();json_response(['ok'=>true]);
+    }
+    if (str_starts_with($action,'users_')) {require dirname(__DIR__).'/users-api.php';users_action($action,$in);}
+    if ($action==='password') {
+        $u=authenticated();rate_limit('password');
+        if ($u['id']==='admin') fail('Das Administrator-Passwort bitte über den Server ändern.');
+        $row=query('SELECT password_hash FROM users WHERE id=?',[$u['id']])->fetch();
+        if (!password_verify((string)($in['current_password']??''),$row['password_hash'])) fail('Aktuelles Passwort stimmt nicht.',403);
+        $password=(string)($in['password']??'');validate_password($password);
+        query('UPDATE users SET password_hash=?,auth_version=auth_version+1 WHERE id=?',[password_hash($password,PASSWORD_DEFAULT),$u['id']]);
+        $_SESSION=[];session_destroy();json_response(['ok'=>true]);
     }
     if ($action==='logout') {$_SESSION=[];session_destroy();json_response(['ok'=>true]);}
     if ($action==='list') {
-        admin();cleanup();
-        $rows=query('SELECT * FROM transfers ORDER BY created_at DESC')->fetchAll();
+        $u=authenticated();cleanup();
+        $rows=query('SELECT * FROM transfers WHERE owner_id=? ORDER BY created_at DESC',[$u['id']])->fetchAll();
         foreach($rows as &$row) {
-            $row['recipients']=array_map(fn($r)=>['kind'=>$r['kind'],'identity'=>mask_identity($r['kind'],$r['identity']),'downloaded_at'=>$r['downloaded_at']],query('SELECT * FROM recipients WHERE transfer_id=?',[$row['id']])->fetchAll());
+            $row['recipients']=array_map(fn($r)=>['kind'=>$r['kind'],'identity'=>mask_identity($r['kind'],$r['identity']),'downloaded_at'=>$r['downloaded_at'],'delivery'=>$r['delivery_status']],query('SELECT * FROM recipients WHERE transfer_id=?',[$row['id']])->fetchAll());
         }
         json_response(['ok'=>true,'transfers'=>$rows]);
     }
     if ($action==='revoke') {
-        admin();
-        transaction(function() use($in) {
+        $u=authenticated();
+        if (!query('SELECT id FROM transfers WHERE id=? AND owner_id=?',[(string)($in['id']??''),$u['id']])->fetchColumn()) fail('Übergabe nicht gefunden.',404);
+        transaction(function() use($in,$u) {
             $id=(string)($in['id']??'');
-            query('UPDATE transfers SET expires_at=? WHERE id=? AND deleted_at IS NULL',[time(),$id]);cleanup_locked();
+            query('UPDATE transfers SET expires_at=? WHERE id=? AND owner_id=? AND deleted_at IS NULL',[time(),$id,$u['id']]);cleanup_locked();
         });
         json_response(['ok'=>true]);
     }

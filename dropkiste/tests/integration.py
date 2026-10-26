@@ -1,7 +1,7 @@
 """Run against the isolated test container only (see README)."""
-import http.cookiejar, json, sqlite3, urllib.request, urllib.error, uuid
+import os, http.cookiejar, json, sqlite3, urllib.request, urllib.error, uuid
 from pathlib import Path
-BASE='http://127.0.0.1:8090'
+BASE=os.environ.get('DROPKISTE_TEST_URL','http://127.0.0.1:8090')
 STORE=Path(__file__).parent/'runtime'/'storage'
 checks=0
 class Client:
@@ -42,6 +42,7 @@ def sql(query,args=()):
  with sqlite3.connect(STORE/'dropkiste.sqlite') as c:return c.execute(query,args).fetchall()
 admin=Client();guest=Client()
 check(admin.request('session',method='GET')[1]['limits']['max_file_bytes']==1048576,'isolated test configuration')
+initializer=Client();initializer.request('login',{'password':'local-test-password'});initializer.request('logout')
 sql('DELETE FROM transfers')
 sql('DELETE FROM attempts')
 for f in STORE.glob('*.blob'):f.unlink()

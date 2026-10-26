@@ -17,5 +17,6 @@ $c['max_storage_bytes']=2097152;
 $c['attempts_per_window']=100;
 return $c;
 PHP_CONFIG;
+$config=str_replace("password_hash('local-test-password',PASSWORD_DEFAULT)",var_export(password_hash('local-test-password',PASSWORD_DEFAULT),true),$config);
 file_put_contents($path,$config."\n");chmod($path,0600);
 echo "Isolierte Testkonfiguration erstellt.\n";

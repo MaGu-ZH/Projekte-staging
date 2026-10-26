@@ -7,8 +7,9 @@ function config(): array {
     $path = getenv('DROPKISTE_CONFIG') ?: __DIR__.'/config.php';
     if (!is_file($path)) throw new RuntimeException('Die Serverkonfiguration fehlt.');
     $c = require $path;
+    $c += ['max_user_storage_bytes'=>$c['max_storage_bytes']??2147483648, 'max_active_transfers_per_user'=>20, 'delivery_timeout_seconds'=>20, 'max_direct_recipients'=>5, 'smtp'=>[], 'sms'=>[]];
     if (!is_array($c) || empty($c['storage_dir']) || empty($c['base_url'])) throw new RuntimeException('Ungültige Serverkonfiguration.');
-    foreach (['max_file_bytes','max_storage_bytes','max_retention_days','max_recipients','tombstone_retention_days','cleanup_interval_seconds','min_admin_password_length','session_seconds','max_api_request_bytes','attempts_per_window','rate_window_seconds','max_parallel_downloads','download_lease_seconds','download_chunk_bytes'] as $key) {
+    foreach (['max_file_bytes','max_storage_bytes','max_retention_days','max_recipients','tombstone_retention_days','cleanup_interval_seconds','min_admin_password_length','session_seconds','max_api_request_bytes','attempts_per_window','rate_window_seconds','max_parallel_downloads','download_lease_seconds','download_chunk_bytes','max_user_storage_bytes','max_active_transfers_per_user','delivery_timeout_seconds','max_direct_recipients'] as $key) {
         if (!isset($c[$key]) || !is_int($c[$key]) || $c[$key] < 1) throw new RuntimeException('Ungültige Konfiguration: '.$key);
     }
     $c['max_retention_days'] = min(30, $c['max_retention_days']);
@@ -39,6 +40,21 @@ function db(): PDO {
     CREATE TABLE IF NOT EXISTS attempts (bucket TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS recipients_transfer ON recipients(transfer_id);
     CREATE INDEX IF NOT EXISTS leases_transfer ON leases(transfer_id);');
+    $db->exec('CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+        password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user",
+        active INTEGER NOT NULL DEFAULT 1, auth_version INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+    );');
+    $db->exec('BEGIN IMMEDIATE');
+    try {
+        $columns=array_column($db->query('PRAGMA table_info(transfers)')->fetchAll(),'name');
+        if (!in_array('owner_id',$columns,true)) $db->exec("ALTER TABLE transfers ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'admin'");
+        $recipientColumns=array_column($db->query('PRAGMA table_info(recipients)')->fetchAll(),'name');
+        if (!in_array('delivery_status',$recipientColumns,true)) $db->exec("ALTER TABLE recipients ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'manual'");
+        $db->exec('CREATE INDEX IF NOT EXISTS transfers_owner ON transfers(owner_id)');
+        $db->exec('COMMIT');
+    } catch (Throwable $e) {$db->exec('ROLLBACK');throw $e;}
     return $db;
 }
 function query(string $sql,array $args=[]): PDOStatement { $s=db()->prepare($sql);$s->execute($args);return $s; }
@@ -62,9 +78,26 @@ function input(): array {
 function csrf(): void {
     if (!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??($_POST['csrf']??''))) fail('Bitte die Seite neu laden.',403);
 }
-function admin(): void {
-    if (empty($_SESSION['admin_at']) || time()-$_SESSION['admin_at']>config()['session_seconds']) fail('Bitte anmelden.',401);
-    $_SESSION['admin_at']=time();
+function current_user(): ?array {
+    if (empty($_SESSION['user_id']) || time()-($_SESSION['admin_at']??0)>config()['session_seconds']) return null;
+    if ($_SESSION['user_id']==='admin') {
+        if (!hash_equals(hash('sha256',config()['admin_password_hash']??''),$_SESSION['auth_version']??'')) return null;
+        return ['id'=>'admin','name'=>'Administrator','email'=>'','role'=>'admin'];
+    }
+    $u=query('SELECT id,name,email,role,active,auth_version FROM users WHERE id=?',[$_SESSION['user_id']])->fetch();
+    if (!$u || !$u['active'] || (string)$u['auth_version']!==(string)($_SESSION['auth_version']??'')) return null;
+    return array_intersect_key($u,array_flip(['id','name','email','role']));
+}
+function authenticated(): array {
+    $u=current_user();
+    if (!$u) fail('Bitte anmelden.',401);
+    $_SESSION['admin_at']=time();return $u;
+}
+function admin(): array {
+    $u=authenticated();if ($u['role']!=='admin') fail('Nur für Administratoren.',403);return $u;
+}
+function validate_password(string $password): void {
+    if (strlen($password)<config()['min_admin_password_length'] || strlen($password)>72) throw new InvalidArgumentException('Passwort muss zwischen '.config()['min_admin_password_length'].' Zeichen und höchstens 72 Bytes lang sein.');
 }
 function normalize_identity(string $kind,string $value): string {
     $value=trim($value);
@@ -119,7 +152,7 @@ function mask_identity(string $kind,string $identity): string {
     [$local,$domain]=explode('@',$identity,2); return substr($local,0,1).'…@'.$domain;
 }
 function upload_transfer(): never {
-    admin();csrf();
+    $owner=authenticated();csrf();
     if (!isset($_FILES['file']) || $_FILES['file']['error']!==UPLOAD_ERR_OK) fail('Upload fehlgeschlagen. Datei- und PHP-Uploadlimit prüfen.');
     $f=$_FILES['file'];
     if (!is_uploaded_file($f['tmp_name'])) fail('Ungültiger Upload.');
@@ -129,6 +162,10 @@ function upload_transfer(): never {
     if (!$days || $days<1 || $days>config()['max_retention_days']) fail('Ungültige Aufbewahrungsdauer.');
     $list=json_decode($_POST['recipients']??'',true);
     if (!is_array($list) || count($list)<1 || count($list)>config()['max_recipients']) fail('Bitte die zulässige Anzahl Empfänger eintragen.');
+    $mode=$_POST['delivery']??'manual';
+    if (!in_array($mode,['manual','direct'],true)) fail('Ungültige Versandart.');
+    if ($mode==='direct' && count($list)>config()['max_direct_recipients']) fail('Direkter Versand ist auf '.config()['max_direct_recipients'].' Empfänger pro Übergabe begrenzt.');
+    if ($mode==='direct') rate_limit('send:'.$owner['id']);
     $recipients=[];$seen=[];
     foreach ($list as $r) {
         if (!is_array($r)) fail('Ungültige Empfänger.');
@@ -142,17 +179,30 @@ function upload_transfer(): never {
     $name=preg_replace('/[\x00-\x1f\x7f\\\\\/]/u','_',basename($f['name']));
     $name=substr($name?:'Datei',0,180);
     try {
-        transaction(function() use($id,$size,$name,$days,$recipients,$f) {
+        transaction(function() use($id,$size,$name,$days,$recipients,$f,$owner) {
             cleanup_locked();
             $used=(int)query('SELECT COALESCE(SUM(bytes),0) FROM transfers WHERE deleted_at IS NULL')->fetchColumn();
             if ($used+$size>config()['max_storage_bytes']) throw new InvalidArgumentException('Der Dateispeicher ist voll.');
-            query('INSERT INTO transfers(id,name,bytes,created_at,expires_at) VALUES(?,?,?,?,?)',[$id,$name,$size,time(),time()+$days*86400]);
+            $personal=(int)query('SELECT COALESCE(SUM(bytes),0) FROM transfers WHERE owner_id=? AND deleted_at IS NULL',[$owner['id']])->fetchColumn();
+            if ($personal+$size>config()['max_user_storage_bytes']) throw new InvalidArgumentException('Dein persönlicher Speicher ist voll.');
+            $active=(int)query('SELECT COUNT(*) FROM transfers WHERE owner_id=? AND deleted_at IS NULL',[$owner['id']])->fetchColumn();
+            if ($active>=config()['max_active_transfers_per_user']) throw new InvalidArgumentException('Zu viele aktive Übergaben. Bitte zuerst alte Übergaben beenden.');
+            query('INSERT INTO transfers(id,name,bytes,created_at,expires_at,owner_id) VALUES(?,?,?,?,?,?)',[$id,$name,$size,time(),time()+$days*86400,$owner['id']]);
             foreach($recipients as $r) query('INSERT INTO recipients(id,transfer_id,kind,identity,token_hash) VALUES(?,?,?,?,?)',[bin2hex(random_bytes(16)),$id,$r['kind'],$r['identity'],hash('sha256',$r['token'])]);
             if (!move_uploaded_file($f['tmp_name'],file_path($id))) throw new RuntimeException('Upload konnte nicht gespeichert werden.');
             chmod(file_path($id),0600);
         });
     } catch(Throwable $e) { if(is_file(file_path($id))) unlink(file_path($id)); throw $e; }
     $links=array_map(fn($r)=>['kind'=>$r['kind'],'identity'=>$r['identity'],'url'=>config()['base_url'].'/#invite='.$r['token']],$recipients);
+    if (($_POST['delivery']??'manual')==='direct') {
+        require_once __DIR__.'/delivery.php';
+        foreach ($links as &$link) {
+            try {send_invitation($link);$link['delivery']='accepted';}
+            catch(Throwable $e) {$link['delivery']='failed';}
+            query('UPDATE recipients SET delivery_status=? WHERE transfer_id=? AND token_hash=?',[$link['delivery'],$id,hash('sha256',substr($link['url'],strrpos($link['url'],'=')+1))]);
+        }
+        unset($link);
+    }
     json_response(['ok'=>true,'id'=>$id,'links'=>$links],201);
 }
 function download(): never {

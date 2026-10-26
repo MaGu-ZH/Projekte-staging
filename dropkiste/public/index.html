@@ -10,19 +10,26 @@
 <main>
 <section id="admin-view" hidden>
 <div class="intro"><span class="eyebrow">DEINE DATEIEN. DEINE EMPFÄNGER.</span><h1>Ab in die Kiste.<br><span>Und sicher ans Ziel.</span></h1><p>Datei hochladen, Menschen einladen, fertig. Deine Datei bleibt nur so lange, wie sie gebraucht wird.</p></div>
-<section id="login-panel" class="card narrow"><h2>Deine Dropkiste öffnen</h2><p>Zum Hochladen mit deinem Verwaltungspasswort anmelden.</p><form id="login-form"><label for="password">Passwort</label><input id="password" type="password" autocomplete="current-password" required><button type="submit">Anmelden <span>→</span></button></form></section>
+<section id="login-panel" class="card narrow"><h2>Deine Dropkiste öffnen</h2><p>Mit deinem Benutzerkonto anmelden. Als Betreiber verwendest du „admin“ und dein bestehendes Verwaltungspasswort.</p><form id="login-form"><label for="login-email">E-Mail-Adresse oder admin</label><input id="login-email" type="text" autocomplete="username" value="admin" required><label for="password">Passwort</label><input id="password" type="password" autocomplete="current-password" required><button type="submit">Anmelden <span>→</span></button></form></section>
 <div id="workspace" hidden>
-<div class="workspace-top"><h2>Neue Übergabe</h2><button id="logout" class="text-button" type="button">Abmelden</button></div>
+<div class="workspace-top"><div><h2>Neue Übergabe</h2><small id="account-name"></small></div><button id="logout" class="text-button" type="button">Abmelden</button></div>
 <form id="upload-form" class="card">
 <label id="dropzone" class="dropzone" for="file"><span class="upload-icon">↑</span><strong id="file-label">Datei auswählen</strong><span>oder hier hineinziehen</span><small id="file-limit"></small><input id="file" type="file" required></label>
 <div class="section-title"><h3>Wer darf herunterladen?</h3><span>Ein eigener Link pro Person</span></div>
 <div id="recipients"></div><button id="add-recipient" class="text-button" type="button">＋ Weitere Person einladen</button>
 <div class="retention"><div><label for="days">Spätestens löschen nach</label><p>Früher, sobald alle Eingeladenen heruntergeladen haben.</p></div><select id="days" aria-label="Aufbewahrungsdauer"></select></div>
-<button type="submit" id="upload-button">Datei hochladen & Links erstellen <span>→</span></button><progress id="progress" max="100" value="0" hidden></progress>
-<p class="fine">Die Links versendest du selbst per E-Mail oder SMS. Jeder Empfänger bestätigt vor dem Download seine eingeladene Adresse oder Telefonnummer.</p>
+<label for="delivery">Einladungen versenden</label><select id="delivery"><option value="manual">Links selbst versenden</option><option value="direct">Direkt über Dropkiste versenden</option></select><p id="delivery-info" class="fine"></p><button type="submit" id="upload-button">Datei hochladen & Links erstellen <span>→</span></button><progress id="progress" max="100" value="0" hidden></progress>
+<p class="fine">Wähle manuellen oder direkten Versand. Bei Versandfehlern bleiben die persönlichen Links zum Kopieren verfügbar. Jeder Empfänger bestätigt vor dem Download seine eingeladene Adresse oder Telefonnummer.</p>
 </form>
 <section id="links-panel" class="card" hidden><h2>Bereit zum Teilen.</h2><p>Versende jeden Link ausschließlich an die zugehörige Person. Links werden nur jetzt angezeigt.</p><div id="links"></div></section>
 <section class="transfers"><div class="workspace-top"><h2>Deine Übergaben</h2><button class="text-button" id="refresh" type="button">Aktualisieren ↻</button></div><div id="transfers"></div></section>
+<section id="users-panel" class="card" hidden>
+<h2>Benutzerverwaltung</h2><p>Neue Konten anlegen, Zugänge sperren und Passwörter neu setzen. Jeder sieht ausschließlich seine eigenen Übergaben.</p>
+<form id="user-create-form"><div class="user-fields"><div><label for="user-name">Name</label><input id="user-name" required maxlength="100" autocomplete="off"></div><div><label for="user-email">E-Mail-Adresse</label><input id="user-email" type="email" required maxlength="254" autocomplete="off"></div><div><label for="user-password">Startpasswort (mindestens 14 Zeichen)</label><input id="user-password" type="password" required minlength="14" maxlength="72" autocomplete="new-password"></div><div><label for="user-role">Rolle</label><select id="user-role"><option value="user">Benutzer</option><option value="admin">Administrator</option></select></div></div><button type="submit">Benutzer anlegen <span>＋</span></button></form>
+<p class="fine">Startpasswort persönlich über einen getrennten Kanal weitergeben. Es wird nicht per E-Mail oder SMS versendet.</p><div id="users-list"></div>
+</section>
+<section id="password-panel" class="card" hidden><h2>Mein Passwort ändern</h2><form id="password-form"><label for="current-password">Aktuelles Passwort</label><input id="current-password" type="password" autocomplete="current-password" required><label for="new-password">Neues Passwort</label><input id="new-password" type="password" autocomplete="new-password" minlength="14" maxlength="72" required><button type="submit">Passwort ändern und abmelden</button></form></section>
+
 </div>
 <div class="benefits"><div><b>01</b><h3>Persönlich eingeladen</h3><p>Jede Person bekommt ihren eigenen Downloadlink.</p></div><div><b>02</b><h3>Nur kurz zu Gast</h3><p>Automatische Löschung nach spätestens 30 Tagen.</p></div><div><b>03</b><h3>Auf jedem Bildschirm</h3><p>Im Browser auf dem Smartphone oder am Computer.</p></div></div>
 </section>

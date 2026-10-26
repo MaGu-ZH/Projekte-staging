@@ -18,12 +18,12 @@ read -r -s -p "Neues Verwaltungspasswort (mindestens $MIN_PASSWORD_LENGTH Zeiche
 read -r -s -p 'Passwort wiederholen: ' ADMIN_CONFIRM; echo
 [ ${#ADMIN_PASSWORD} -ge "$MIN_PASSWORD_LENGTH" ] && [ "$ADMIN_PASSWORD" = "$ADMIN_CONFIRM" ] || { echo 'Passwörter stimmen nicht überein oder sind zu kurz.'; exit 1; }
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php libapache2-mod-php php-sqlite3
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php libapache2-mod-php php-sqlite3 php-curl
 PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
 php -r 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);'
 RELEASE_DIR=/opt/dropkiste-app/releases/$(date -u +%Y%m%dT%H%M%SZ)
 install -d -m 755 "$RELEASE_DIR/public" "$RELEASE_DIR/bin"
-install -m 644 "$SOURCE_DIR/app.php" "$RELEASE_DIR/app.php"
+install -m 644 "$SOURCE_DIR"/{app.php,users-api.php,delivery.php} "$RELEASE_DIR/"
 install -m 644 "$SOURCE_DIR"/public/{index.html,api.php,app.js,style.css,box.svg} "$RELEASE_DIR/public/"
 install -m 644 "$SOURCE_DIR/bin/cleanup.php" "$RELEASE_DIR/bin/cleanup.php"
 install -d -m 750 -o root -g www-data /etc/dropkiste

@@ -1,18 +1,18 @@
-# Validierung am 26.10.2026
+# Version 2 – Validierung am 26.10.2026
 
-- PHP 8.5.12: 39 API-/Integrationsprüfungen erfolgreich (tests/integration.py).
-- Zusätzlich vorheriger Kernlauf unter PHP 8.3 erfolgreich.
-- Chromium/Playwright: Desktop-Upload, zwei individuelle Einladungen, falsche Identität,
-  Desktop- und Smartphone-Download mit Vergleich des Dateiinhalts, Anzeige 2/2 und beendet,
-  mobile Upload-Verwaltung ohne horizontalen Überlauf, keine JavaScript-Laufzeitfehler.
-- Abgewiesene Uploads: nicht angemeldet, leer, zu groß, doppelte Empfänger,
-  ungültige Telefonnummer, ungültige Aufbewahrungsdauer, volle Speicherquote.
-- Gelöscht nach letztem Download, bei Ablauf und durch manuelles Beenden;
-  Empfängerdaten nach Löschung entfernt. Dateiexistenz auf dem Datenträger geprüft.
-- PHP-Syntaxprüfung, JavaScript-Syntaxprüfung und Bash-Syntaxprüfung erfolgreich.
-- Cleanup-CLI erfolgreich ausgeführt.
+- PHP 8.5: 39 bestehende API-/Integrationsprüfungen erfolgreich.
+- 39 zusätzliche Mehrbenutzerprüfungen: Anlegen, Rollen, schwache/duplizierte Zugänge,
+  eigene Übergaben, verweigerte Fremdzugriffe, Sperren, erneutes Aktivieren, Passwortreset,
+  Entzug alter Sitzungen, eigener Passwortwechsel und manueller Fallback bei Versandfehlern.
+- Browser: bisheriger Desktop-/Mobil-Upload und Downloadablauf weiterhin erfolgreich.
+- Zusätzlicher Browser-Test: Benutzer anlegen, mobile Benutzeranmeldung, rollenspezifische
+  Ansicht, Kontosperre für aktive Sitzung, Passwortreset, Aktivierung und eigener Passwortwechsel.
+- Migration einer v1-Datenbank und alten Konfiguration zweimal erfolgreich: aktive Datei und
+  Einladungstoken unverändert, ursprüngliche Übergabe dem Betreiber zugeordnet.
+- SMTP-Fixture: TLS mit Authentifizierung, STARTTLS, gültiger persönlicher Link im Mailtext,
+  Ablehnung eines nicht vertrauenswürdigen Zertifikats sowie einer SMTP-Empfängerablehnung.
+- PHP-, JavaScript- und Shell-Syntaxprüfungen erfolgreich.
 
-Nicht auf dem IONOS-Produktivserver ausgeführt: Installation, Apache-Umschaltung,
-Systemd-Timer und abschließende HTTPS-Funktionstests. Diese erfolgen nach Übertragung
-in der SSH-Sitzung des Eigentümers. Smartphone wurde im Chromium-Geräteprofil emuliert;
-kein physisches iPhone-/Android-Gerät getestet. Kein automatischer E-Mail-/SMS-Versand.
+Nicht geprüft: echte Zustellung über ALL-INKL ohne Postfachdaten, echte SMS über Twilio ohne
+Account sowie Update-Ausführung auf IONOS. SMTP-Tests versenden ausschließlich an einen lokalen
+Testserver. Kein Smartphone-Hardwaretest; Browser-Tests verwenden ein mobiles Chromium-Profil.
